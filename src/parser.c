@@ -1,12 +1,10 @@
 #include <stdio.h>
-
+#include <stdlib.h>
 #include "../include/parser.h"
-
-#define MAX_STACK 256
+#include "../include/utilities/vector.h"
 
 int precedence(TokenType operator) {
-    switch (operator)
-    {
+    switch (operator) {
         case T_STAR:
         case T_PLUS:
         case T_QUESTION:
@@ -18,63 +16,57 @@ int precedence(TokenType operator) {
     }
 }
 
-Token* parse_infix_to_rpn(Token* tokens, size_t num_tokens) {
-    Token* result = malloc(sizeof(Token) * num_tokens);
+Vector* parse_infix_to_rpn(Vector* tokens) {
+    Vector* op_stack = vector_create(NULL);
+    Vector* result = vector_create((void(*)(void*))TOKEN_FREE);
 
-    if (!result) {
-        fprintf(stderr, "Memory allocation failed for result\n");
-        return NULL;
-    }
+    for (size_t i = 0; i < tokens->size; ++i) {
+        Token* cur_token = (Token*)vector_get(tokens, i);
 
-    Token* op_stack = malloc(sizeof(Token) * MAX_STACK); // operator stack
-    if (!op_stack) {
-        fprintf(stderr, "Memory allocation failed for op_stack\n");
-        free(result);
-        return NULL;
-    }
-    int op_pos = 0;
-    int output_pos = 0;
+        if (cur_token == NULL) {
+            vector_free(op_stack);
+            vector_free(result);
+            return NULL;
+        }
 
-    for (size_t i = 0; i < num_tokens; ++i) {
-        Token cur_token = tokens[i];
-
-        switch (cur_token.type) {
+        switch (cur_token->type) {
             case T_CHAR:
-                result[output_pos++] = cur_token;
+                vector_push(result, cur_token);
                 break;
+
             case T_LPAREN:
-                op_stack[op_pos++] = cur_token;
+                vector_push(op_stack, cur_token);
                 break;
+
             case T_RPAREN:
-                while (op_pos > 0 && op_stack[op_pos - 1].type != T_LPAREN) {
-                    result[output_pos++] = op_stack[--op_pos];
+                while (op_stack->size > 0 && ((Token*)vector_back(op_stack))->type != T_LPAREN) {
+                    vector_push(result, vector_back(op_stack));
+                    vector_pop(op_stack);
                 }
-                --op_pos;
+                vector_pop(op_stack);
                 break;
             case T_STAR:
             case T_PLUS:
             case T_QUESTION:
             case T_UNION:
-                while (op_pos > 0 && precedence(op_stack[op_pos - 1].type) >= precedence(cur_token.type)) {
-                    if (output_pos < num_tokens) {
-                        result[output_pos++] = op_stack[--op_pos];
-                    }
+                while (op_stack->size > 0 && precedence(((Token*)vector_back(op_stack))->type) >= precedence(cur_token->type)) {
+                    vector_push(result, vector_back(op_stack));
+                    vector_pop(op_stack);
                 }
-                if (op_pos < MAX_STACK) {
-                    op_stack[op_pos++] = cur_token;
-                }
+                vector_push(op_stack, cur_token);
                 break;
+
             default:
                 break;
         }
     }
 
-    while (op_pos > 0) {
-        if (output_pos < num_tokens) {
-            result[output_pos++] = op_stack[--op_pos];
-        }
+    while (op_stack->size > 0) {
+        vector_push(result, vector_back(op_stack));
+        vector_pop(op_stack);
     }
 
-    free(op_stack);
-    return result;
+   vector_free(op_stack);
+
+   return result;
 }

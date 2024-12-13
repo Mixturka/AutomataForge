@@ -2,18 +2,24 @@
 #define PARSER_H
 
 #include "./lexer/token.h"
+#include "./utilities/vector.h"
+
+#define SET_PARSER_ERROR(error, error_code) \
+    do { \
+        if (error) { \
+            error->code = error_code; \
+        } \
+    } while(0)
 
 typedef enum {
     PARSER_ERR_NONE = 0,
+    PARSER_ERR_MEMORY
 } ParserErrorCode;
 
 typedef struct {
     ParserErrorCode code;
-    const char* message;
-    const char* input;
-    size_t pos;
 } ParserError;
 
-Token* parse_infix_to_rpn(Token* tokens, size_t num_tokens); // rpn - reverse polish notation
+Vector* parse_infix_to_rpn(Vector* tokens); // rpn - reverse polish notation
 
 #endif // PARSER_H
