@@ -20,6 +20,10 @@ Vector* tokenize_regex(const char* regex_src, size_t regex_len, LexerError* erro
 
         if (isalnum(c)) {
             Token* token = TOKEN_SINGLE(T_CHAR, c);
+            Token* prev = vector_back(tokens);
+            if (prev && prev->type == T_CHAR) {
+                vector_push(tokens, TOKEN_SINGLE(T_CONCAT, '.'));
+            }
             vector_push(tokens, token);
         } else if (c == '*') {
             Token* token = TOKEN_SINGLE(T_STAR, c);

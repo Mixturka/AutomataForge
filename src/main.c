@@ -3,9 +3,10 @@
 #include "../include/lexer/lexer.h"
 #include "../include/parser.h"
 #include "../include/utilities/vector.h"
+#include "../include/nfa.h"
 
 int main() {
-    const char* regex = "a(a|b)";
+    const char* regex = "a*";
     LexerError error;
     Vector* tokens = tokenize_regex(regex, strlen(regex), &error);
 
@@ -18,24 +19,21 @@ int main() {
         exit(1);
     }
 
-     for (size_t i = 0; i < tokens->size; ++i) {
+    for (size_t i = 0; i < tokens->size; ++i) {
      printf("Token %zu: %s\n", i, ((Token*)vector_get(tokens, i))->value);
     }
 
-    Vector* a = 
-    parse_infix_to_rpn(tokens);
+    Vector* a = parse_infix_to_rpn(tokens);
 
     printf("%zu\n", a->size);
 
     for (size_t i = 0; i < a->size; ++i) {
         printf("%s ", ((Token*)vector_get(a, i))->value);
     }
-    // printf("%zu", rpn_length);
-    // if (rpn_tokens) {
-    //     for (size_t i = 0; i < rpn_length; ++i) {
-    //         printf("%s ", rpn_tokens[i].value);
-    //     }
-    // }
+
+    NFA* nfa = nfa_build(a);
+
+    nfa_print(nfa);
 
     // if (tokens) {
     //     for (int i = 0; i < strlen(regex) + 1; ++i) {

@@ -8,6 +8,7 @@ int precedence(TokenType operator) {
         case T_STAR:
         case T_PLUS:
         case T_QUESTION:
+        case T_CONCAT:
             return 2;
         case T_UNION:
             return 1;
@@ -48,8 +49,10 @@ Vector* parse_infix_to_rpn(Vector* tokens) {
             case T_STAR:
             case T_PLUS:
             case T_QUESTION:
+            case T_CONCAT:
             case T_UNION:
-                while (op_stack->size > 0 && precedence(((Token*)vector_back(op_stack))->type) >= precedence(cur_token->type)) {
+                while (op_stack->size > 0 &&
+                        precedence(((Token*)vector_back(op_stack))->type) >= precedence(cur_token->type)) {
                     vector_push(result, vector_back(op_stack));
                     vector_pop(op_stack);
                 }
