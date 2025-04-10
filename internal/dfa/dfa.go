@@ -7,6 +7,11 @@ import (
 	"sort"
 )
 
+type TokenInfo struct {
+	Name     string
+	Priority int
+}
+
 const Epsilon = 'ε'
 
 type stateSet map[int]struct{}
@@ -14,7 +19,7 @@ type stateSet map[int]struct{}
 type DFA struct {
 	Transitions map[int]map[rune]int
 	Start       int
-	Accepts     []int
+	Accepts     map[int]TokenInfo
 }
 
 func (dfa *DFA) Minimize() {
@@ -25,7 +30,7 @@ func (dfa *DFA) Minimize() {
 	acceptStates := make(stateSet)
 	nonAcceptStates := make(stateSet)
 
-	for _, q := range dfa.Accepts {
+	for q := range dfa.Accepts {
 		if _, exists := acceptStates[q]; !exists {
 			acceptStates[q] = struct{}{}
 			stateToSet[q] = &acceptStates
@@ -90,11 +95,11 @@ func (dfa *DFA) Minimize() {
 
 	dfa.Transitions = newDfaTransitions
 
-	newAccepts := make([]int, 0)
+	newAccepts := make(map[int]TokenInfo)
 	for stateSet, newStateId := range stateSetToNewStateIds {
 		for state := range *stateSet {
-			if slices.Contains(dfa.Accepts, state) {
-				newAccepts = append(newAccepts, newStateId)
+			if tokenInfo, exists := dfa.Accepts[state]; exists {
+				newAccepts[newStateId] = tokenInfo
 				break
 			}
 		}
@@ -174,6 +179,7 @@ func (dfa *DFA) BuildClassifierTable() map[rune]int {
 				statesTo[i] = -1
 			}
 		}
+		transitions[r] = statesTo
 	}
 
 	runeGroups := make(map[string][]rune)
@@ -220,15 +226,26 @@ func (dfa *DFA) BuildTransitionTable(classifierTable map[rune]int) [][]int {
 	for i, state := range states {
 		transitionTable[i] = make([]int, len(classes))
 		for j, class := range classes {
-			if stateTo, exists := dfa.Transitions[state][reverseClassifier[class]]; exists {
-				transitionTable[i][j] = stateTo
-			} else {
-				transitionTable[i][j] = -1
+			transitionTable[i][j] = -1
+			if r, exists := reverseClassifier[class]; exists {
+				if stateTo, exists := dfa.Transitions[state][r]; exists {
+					transitionTable[i][j] = stateTo
+				}
 			}
 		}
 	}
 
 	return transitionTable
+}
+
+func (dfa *DFA) BuildTypeTable() map[int]TokenInfo {
+	typeTable := make(map[int]TokenInfo)
+
+	for state, tokenInfo := range dfa.Accepts {
+		typeTable[state] = tokenInfo
+	}
+
+	return typeTable
 }
 
 func (dfa *DFA) getStates() []int {

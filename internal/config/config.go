@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"sort"
 
@@ -26,7 +27,7 @@ func ParseConfig(configPath string) ([]TokenConfig, error) {
 
 	var config Config
 	if err := yaml.Unmarshal(configBytes, &config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid YAML structure: %w", err)
 	}
 
 	sort.Slice(config.Tokens, func(i, j int) bool { return config.Tokens[i].Priority < config.Tokens[j].Priority })
