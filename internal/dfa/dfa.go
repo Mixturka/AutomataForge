@@ -7,11 +7,6 @@ import (
 	"sort"
 )
 
-type TokenInfo struct {
-	Name     string
-	Priority int
-}
-
 const Epsilon = 'ε'
 
 type stateSet map[int]struct{}
@@ -19,36 +14,44 @@ type stateSet map[int]struct{}
 type DFA struct {
 	Transitions map[int]map[rune]int
 	Start       int
-	Accepts     map[int]TokenInfo
+	Accepts     map[int]string
 }
 
 func (dfa *DFA) Minimize() {
 	alphabet := dfa.GetAlphabet()
-	stateToSet := make(map[int]*stateSet) // track set pointer for each state to simply lovely determine its set
-	T, P := make(map[*stateSet]struct{}), make(map[*stateSet]struct{})
+	stateToSet := make(map[int]*stateSet)
+	T := make(map[*stateSet]struct{})
 
-	acceptStates := make(stateSet)
+	partitions := make(map[string]*stateSet)
+	for state, token := range dfa.Accepts {
+		key := token
+		if set, exists := partitions[key]; exists {
+			(*set)[state] = struct{}{}
+			stateToSet[state] = set
+		} else {
+			newSet := make(stateSet)
+			newSet[state] = struct{}{}
+			partitions[key] = &newSet
+			stateToSet[state] = &newSet
+			T[&newSet] = struct{}{}
+		}
+	}
+
 	nonAcceptStates := make(stateSet)
-
-	for q := range dfa.Accepts {
-		if _, exists := acceptStates[q]; !exists {
-			acceptStates[q] = struct{}{}
-			stateToSet[q] = &acceptStates
+	for state := range dfa.Transitions {
+		if _, isAccept := dfa.Accepts[state]; !isAccept {
+			nonAcceptStates[state] = struct{}{}
+		}
+	}
+	if len(nonAcceptStates) > 0 {
+		T[&nonAcceptStates] = struct{}{}
+		stateToSetPtr := &nonAcceptStates
+		for state := range nonAcceptStates {
+			stateToSet[state] = stateToSetPtr
 		}
 	}
 
-	for q := range dfa.Transitions {
-		if _, exists := nonAcceptStates[q]; !exists {
-			if _, isAccept := acceptStates[q]; !isAccept {
-				nonAcceptStates[q] = struct{}{}
-				stateToSet[q] = &nonAcceptStates
-			}
-		}
-	}
-
-	T[&acceptStates] = struct{}{}
-	T[&nonAcceptStates] = struct{}{}
-
+	P := make(map[*stateSet]struct{})
 	for !maps.Equal(T, P) {
 		P = make(map[*stateSet]struct{})
 		maps.Copy(P, T)
@@ -69,12 +72,11 @@ func (dfa *DFA) Minimize() {
 		}
 	}
 
-	// code below recomputes new minimized transitions and updates our DFA struct
 	newDfaTransitions := make(map[int]map[rune]int)
 	newStateIdCounter := 0
 	stateSetToNewStateIds := make(map[*stateSet]int)
 
-	for stateSet := range P {
+	for stateSet := range T {
 		stateSetToNewStateIds[stateSet] = newStateIdCounter
 		newStateIdCounter++
 	}
@@ -84,7 +86,7 @@ func (dfa *DFA) Minimize() {
 	}
 
 	for _, c := range alphabet {
-		for stateSet := range P {
+		for stateSet := range T {
 			for state := range *stateSet {
 				if toState, exists := dfa.Transitions[state][c]; exists {
 					newDfaTransitions[stateSetToNewStateIds[stateSet]][c] = stateSetToNewStateIds[stateToSet[toState]]
@@ -95,11 +97,11 @@ func (dfa *DFA) Minimize() {
 
 	dfa.Transitions = newDfaTransitions
 
-	newAccepts := make(map[int]TokenInfo)
+	newAccepts := make(map[int]string)
 	for stateSet, newStateId := range stateSetToNewStateIds {
 		for state := range *stateSet {
-			if tokenInfo, exists := dfa.Accepts[state]; exists {
-				newAccepts[newStateId] = tokenInfo
+			if token, exists := dfa.Accepts[state]; exists {
+				newAccepts[newStateId] = token
 				break
 			}
 		}
@@ -108,7 +110,6 @@ func (dfa *DFA) Minimize() {
 	dfa.Accepts = newAccepts
 	dfa.Start = stateSetToNewStateIds[stateToSet[dfa.Start]]
 }
-
 func (dfa *DFA) Split(states *stateSet, stateToSet map[int]*stateSet, alphabet []rune) []*stateSet {
 	for _, c := range alphabet {
 		newStateSet1 := make(stateSet)
@@ -146,7 +147,6 @@ func (dfa *DFA) Split(states *stateSet, stateToSet map[int]*stateSet, alphabet [
 	return nil
 }
 
-// GetAlphabet returns all transition symbols (ignoring Epsilon)
 func (dfa *DFA) GetAlphabet() []rune {
 	symbolSet := make(map[rune]struct{})
 	for _, trans := range dfa.Transitions {
@@ -238,11 +238,11 @@ func (dfa *DFA) BuildTransitionTable(classifierTable map[rune]int) [][]int {
 	return transitionTable
 }
 
-func (dfa *DFA) BuildTypeTable() map[int]TokenInfo {
-	typeTable := make(map[int]TokenInfo)
+func (dfa *DFA) BuildTypeTable() map[int]string {
+	typeTable := make(map[int]string)
 
-	for state, tokenInfo := range dfa.Accepts {
-		typeTable[state] = tokenInfo
+	for state, tokenName := range dfa.Accepts {
+		typeTable[state] = tokenName
 	}
 
 	return typeTable
@@ -258,7 +258,6 @@ func (dfa *DFA) getStates() []int {
 	return states
 }
 
-// PrettyPrint displays the DFA details
 func (dfa *DFA) PrettyPrint() {
 	fmt.Println("DFA Start State:", dfa.Start)
 	fmt.Println("DFA Accepting States:", dfa.Accepts)

@@ -6,12 +6,19 @@ import (
 	"sort"
 	"strings"
 
+	"slices"
+
 	"github.com/Mixturka/AutomataForge/internal/dfa"
 	"github.com/Mixturka/AutomataForge/pkg/queue"
 	"github.com/Mixturka/AutomataForge/pkg/sliceutils"
 )
 
 const Epsilon = 'ε'
+
+type TokenInfo struct {
+	Name     string
+	Priority int
+}
 
 type StateIdGenerator struct {
 	nextId int
@@ -63,7 +70,7 @@ type RegexNfa struct {
 	*BaseNfa
 	Start     int
 	Accept    int
-	TokenInfo dfa.TokenInfo
+	TokenInfo TokenInfo
 }
 
 func (rnfa *RegexNfa) Concatenate(other *RegexNfa) {
@@ -214,23 +221,30 @@ func BuildNFA(stateIdGen *StateIdGenerator, pattern string, tokenType string, to
 	re = re.Simplify()
 
 	nfa := buildNfaFromRegexp(re, stateIdGen)
-	nfa.TokenInfo = dfa.TokenInfo{Name: tokenType, Priority: tokenPriority}
+	nfa.TokenInfo = TokenInfo{Name: tokenType, Priority: tokenPriority}
 	return nfa
+}
+
+type TokenAccept struct {
+	TokenInfo   TokenInfo
+	AcceptState int
 }
 
 type UnifiedNfa struct {
 	*BaseNfa
-	Start   int
-	Accepts map[int]dfa.TokenInfo
+	Start      int
+	Accepts    map[int]TokenInfo
+	tokenOrder []TokenAccept
 }
 
 func NewUnifiedNfa(stateIdGen *StateIdGenerator) *UnifiedNfa {
 	base := NewBaseNfa(stateIdGen)
 	start := stateIdGen.NextId()
 	return &UnifiedNfa{
-		BaseNfa: base,
-		Start:   start,
-		Accepts: make(map[int]dfa.TokenInfo),
+		BaseNfa:    base,
+		Start:      start,
+		Accepts:    make(map[int]TokenInfo),
+		tokenOrder: []TokenAccept{},
 	}
 }
 
@@ -238,6 +252,10 @@ func (unfa *UnifiedNfa) AddRegex(rnfa *RegexNfa) {
 	unfa.AddTransition(unfa.Start, rnfa.Start, Epsilon)
 	unfa.MergeTransitions(rnfa.BaseNfa)
 	unfa.Accepts[rnfa.Accept] = rnfa.TokenInfo
+	unfa.tokenOrder = append(unfa.tokenOrder, TokenAccept{
+		TokenInfo:   rnfa.TokenInfo,
+		AcceptState: rnfa.Accept,
+	})
 }
 
 func (unfa *UnifiedNfa) GetAlphabet() []rune {
@@ -260,7 +278,7 @@ func (unfa *UnifiedNfa) BuildDFA() *dfa.DFA {
 	curId := 0
 	alphabet := unfa.GetAlphabet()
 	dfaTransitions := make(map[int]map[rune]int)
-	dfaAccepts := make(map[int]dfa.TokenInfo)
+	dfaAccepts := make(map[int]string)
 
 	q0 := unfa.computeEpsilonClosure([]int{unfa.Start})
 	Q := [][]int{q0}
@@ -275,22 +293,24 @@ func (unfa *UnifiedNfa) BuildDFA() *dfa.DFA {
 		dfaState := stateMap[sliceutils.HashSlice(q)]
 		dfaTransitions[dfaState] = make(map[rune]int)
 
-		tokenMap := make(map[dfa.TokenInfo]struct{})
-		for _, state := range q {
-			if tokenInfo, exists := unfa.Accepts[state]; exists {
-				tokenMap[tokenInfo] = struct{}{}
+		var acceptInfos []TokenInfo
+		for _, tokenAccept := range unfa.tokenOrder {
+			for _, state := range q {
+				if state == tokenAccept.AcceptState {
+					duplicate := slices.Contains(acceptInfos, tokenAccept.TokenInfo)
+					if !duplicate {
+						acceptInfos = append(acceptInfos, tokenAccept.TokenInfo)
+					}
+					break
+				}
 			}
-		}
-		acceptInfos := make([]dfa.TokenInfo, 0, len(tokenMap))
-		for token := range tokenMap {
-			acceptInfos = append(acceptInfos, token)
 		}
 		sort.Slice(acceptInfos, func(i, j int) bool {
 			return acceptInfos[i].Priority < acceptInfos[j].Priority
 		})
 
 		if len(acceptInfos) > 0 {
-			dfaAccepts[dfaState] = acceptInfos[0]
+			dfaAccepts[dfaState] = acceptInfos[0].Name
 		}
 
 		for _, symbol := range alphabet {

@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/Mixturka/AutomataForge/internal/config"
-	"github.com/Mixturka/AutomataForge/internal/dfa"
 	"github.com/Mixturka/AutomataForge/internal/nfa"
 )
 
@@ -17,9 +16,9 @@ type CliConfig struct {
 }
 
 type TableOutput struct {
-	ClassifierTable map[rune]int          `json:"classifierTable"`
-	TransitionTable [][]int               `json:"transitionTable"`
-	TokenTypeTable  map[int]dfa.TokenInfo `json:"tokenTypeTable"`
+	ClassifierTable map[rune]int   `json:"classifierTable"`
+	TransitionTable [][]int        `json:"transitionTable"`
+	TokenTypeTable  map[int]string `json:"tokenTypeTable"`
 }
 
 func parseFlags() *CliConfig {

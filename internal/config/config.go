@@ -18,7 +18,6 @@ type Config struct {
 	Tokens []TokenConfig `yaml:"tokens"`
 }
 
-// Returns tokens' configuraion in sorted by priority order
 func ParseConfig(configPath string) ([]TokenConfig, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
@@ -30,6 +29,8 @@ func ParseConfig(configPath string) ([]TokenConfig, error) {
 		return nil, fmt.Errorf("invalid YAML structure: %w", err)
 	}
 
-	sort.Slice(config.Tokens, func(i, j int) bool { return config.Tokens[i].Priority < config.Tokens[j].Priority })
+	sort.SliceStable(config.Tokens, func(i, j int) bool {
+		return config.Tokens[i].Priority < config.Tokens[j].Priority
+	})
 	return config.Tokens, nil
 }
